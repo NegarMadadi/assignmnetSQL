@@ -18,13 +18,19 @@ public class TodoRepositoryJDBC implements TodoDao {
     public static final String INSERT_WITH_ASSIGNEE = "INSERT INTO todo_item(title, description, deadline, done, assignee_id) VALUES (?, ?, ?, ?, ?)";
     public static final String INSERT_WITHOUT_ASSIGNEE = "INSERT INTO todo_item(title, description, deadline, done) VALUES (?, ?, ?, ?)";
     public static final String TODO_FIND_ID = "SELECT * FROM todo_item WHERE todo_id = ?";
+    public static final String TODO_FIND_DONE = "SELECT * FROM todo_item WHERE done = ?";
+    public static final String TODO_FIND_ASSIGNEEID = "SELECT * FROM todo_item WHERE assignee_id = ?";
+    public static final String TODO_FIND_NOTASSIGNED = "SELECT * FROM todo_item WHERE assignee_id is NULL";
+
+    private PersonDao personDao;
+
+    public TodoRepositoryJDBC(PersonDao personDao){
+        this.personDao = personDao;
+    }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     @Override
     public Todo create(Todo newTodo) {
-        if (newTodo.getTodo_id() != 0) {
-            throw new IllegalArgumentException();
-        }
 
         Connection connection = null;
         PreparedStatement statement = null;
@@ -57,6 +63,7 @@ public class TodoRepositoryJDBC implements TodoDao {
             }
 
         } catch (SQLException ex) {
+
             ex.printStackTrace();
         }
         return newTodo;
@@ -116,8 +123,8 @@ public class TodoRepositoryJDBC implements TodoDao {
     private Todo createTodoFromResultSet(ResultSet resultSet) throws SQLException {
         Todo todo = new Todo(
                 resultSet.getInt("todo_id"),
-                resultSet.getNString("title "),
-                resultSet.getNString("description"),
+                resultSet.getString("title"),
+                resultSet.getString("description"),
                 resultSet.getObject("deadline", LocalDate.class),
                 resultSet.getBoolean("done"),
                 null
@@ -140,28 +147,142 @@ public class TodoRepositoryJDBC implements TodoDao {
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------
     @Override
     public Collection<Todo> findByDoneStatus(boolean done) {
-        return null;
+        Optional<Todo> todoOptional = Optional.empty();
+        List<Todo> result = new ArrayList<>();
+        try (
+                Connection connection = MyDataSource.getConnection();
+                PreparedStatement statement = createFindByDoneStatusStatement(connection, TODO_FIND_DONE, done);
+                ResultSet resultSet = statement.executeQuery();
+        ) {
+            while (resultSet.next()) {
+
+                Todo todo = createTodoFromResultSet(resultSet);
+                todoOptional = Optional.of(todo);
+                if(todoOptional.isPresent())
+                    result.add(todoOptional.get());
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+
+        }
+
+        return result;
     }
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    private PreparedStatement createFindByDoneStatusStatement(Connection connection, String sql, boolean done) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setBoolean(1, done);
+        return statement;
+    }
+
+    //--------------------------------------------------------------------------------------------------------------------------------------------------------------------
     @Override
     public Collection<Todo> findByAssignee(int PersonId) {
-        return null;
+        Optional<Todo> todoOptional = Optional.empty();
+        List<Todo> result = new ArrayList<>();
+        try (
+                Connection connection = MyDataSource.getConnection();
+                PreparedStatement statement = createFindByAssigneeIdStatement(connection, TODO_FIND_ASSIGNEEID, PersonId);
+                ResultSet resultSet = statement.executeQuery();
+        ) {
+            while (resultSet.next()) {
+
+                Todo todo = createTodoFromResultSet(resultSet);
+                todoOptional = Optional.of(todo);
+                if(todoOptional.isPresent())
+                    result.add(todoOptional.get());
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+
+        }
+
+        return result;
+    }
+    private PreparedStatement createFindByAssigneeIdStatement(Connection connection, String sql, int personId) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setInt(1, personId);
+        return statement;
     }
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------
     @Override
     public Collection<Todo> findByAssignee(Person person) {
-        return null;
+        if (personDao.findById(person.getPerson_id()).isPresent()){
+            return findByAssignee(person.getPerson_id());
+        }
+        return new ArrayList<>();
     }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
     @Override
     public Collection<Todo> findByUnassignedTodoItems() {
-        return null;
+        Optional<Todo> todoOptional = Optional.empty();
+        List<Todo> result = new ArrayList<>();
+        try (
+                Connection connection = MyDataSource.getConnection();
+                PreparedStatement statement = createFindNotAssigneeStatement(connection, TODO_FIND_NOTASSIGNED);
+                ResultSet resultSet = statement.executeQuery();
+        ) {
+            while (resultSet.next()) {
+
+                Todo todo = createTodoFromResultSet(resultSet);
+                todoOptional = Optional.of(todo);
+                if(todoOptional.isPresent())
+                    result.add(todoOptional.get());
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+
+        }
+
+        return result;
+    }
+
+    public static final String UPDATE_TODO = "UPDATE todo_item SET title = ?, description = ?, deadline = ?, done = ?, assignee_id = ? WHERE (todo_id = ?)";
+    @Override
+    public Todo update(Todo todo) {
+
+        if (todo.getTodo_id() == 0){
+            throw new IllegalArgumentException();
+        }
+
+        try (
+                Connection connection = MyDataSource.getConnection();
+                PreparedStatement statement = connection.prepareStatement(UPDATE_TODO)){
+                statement.setString(1, todo.getTitle());
+                statement.setString(2, todo.getDescription());
+                statement.setObject(3, todo.getDeadline());
+                statement.setBoolean(4,todo.isDone());
+                statement.setInt(5,todo.getAssignee() != null ? todo.getAssignee().getPerson_id() : null);
+                statement.setInt(6,todo.getTodo_id());
+
+                statement.execute();
+
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }
+        return todo;
+    }
+
+    private PreparedStatement createFindNotAssigneeStatement(Connection connection, String sql) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement(sql);
+        return statement;
     }
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
+    public static final String DELETE_TODO = "DELETE FROM todo_item WHERE todo_id = ?";
     @Override
     public boolean deleteById(int id) {
-
-        return false;
+        int rowAffected = 0;
+        try (
+                Connection connection = MyDataSource.getConnection();
+                PreparedStatement statement = connection.prepareStatement(DELETE_TODO)){
+            statement.setInt(1,id);
+            rowAffected = statement.executeUpdate();
+        }catch (SQLException ex){
+            ex.printStackTrace();
+        }
+        return true;
     }
 
 }

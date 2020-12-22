@@ -15,7 +15,7 @@ public interface TodoDao {
     Collection<Todo> findByAssignee (int PersonId);
     Collection<Todo> findByAssignee (Person person);
     Collection<Todo> findByUnassignedTodoItems();
-   /* Todo update(Todo update); */
+    Todo update(Todo update);
     boolean deleteById(int id);
 
 }

@@ -12,17 +12,13 @@ import java.util.Optional;
 
 public class PersonRepositoryJDBC implements PersonDao {
 
-    public static final String FIND_BY_ID = "select * FROM person WHERE todo_id = ?";
+    public static final String FIND_BY_ID = "select * FROM person WHERE person_id = ?";
     public static final String FIND_BY_NAME_LIKE = "SELECT * FROM person where first_name LIKE ?";
 
 
 
     @Override
     public Person create(Person person) {
-        if (person.getPerson_id() != 0) {
-            throw new IllegalArgumentException();
-        }
-
         Connection connection = null;
         PreparedStatement statement = null;
         ResultSet keySet = null;
@@ -105,7 +101,6 @@ public class PersonRepositoryJDBC implements PersonDao {
                 resultSet.getString("first_name"),
                 resultSet.getString("last_name")
 
-
         );
     }
 
@@ -167,7 +162,7 @@ public class PersonRepositoryJDBC implements PersonDao {
            PreparedStatement statement = connection.prepareStatement(UPDATE_PERSON)){
            statement.setString(1, updatedPerson.getFirst_name());
            statement.setString(2, updatedPerson.getLast_name());
-
+            statement.setInt(3,updatedPerson.getPerson_id());
            statement.execute();
 
            }catch (SQLException ex){
@@ -186,7 +181,7 @@ public class PersonRepositoryJDBC implements PersonDao {
                 Connection connection = MyDataSource.getConnection();
                 PreparedStatement statement = connection.prepareStatement(DELETE_PERSON)){
 
-
+                statement.setInt(1,id);
 
             rowAffected = statement.executeUpdate();
 
